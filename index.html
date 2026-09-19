@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>개구리 중사 케로로 - 틀린그림찾기</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Jua&display=swap');
+    body {
+      font-family: 'Jua', sans-serif;
+      user-select: none;
+      /* 파스텔톤 노란색 바탕 + 갈색 도트 패턴 */
+      background-color: #fef08a;
+      background-image: radial-gradient(#b45309 18%, transparent 18%), radial-gradient(#b45309 18%, transparent 18%);
+      background-size: 24px 24px;
+      background-position: 0 0, 12px 12px;
+    }
+    .circle-marker {
+      position: absolute;
+      border: 4px solid #ef4444;
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      box-shadow: 0 0 10px rgba(239, 68, 68, 0.8);
+    }
+    .hint-marker {
+      position: absolute;
+      border: 4px dashed #eab308;
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      animation: pulse 1s infinite;
+    }
+    @keyframes popIn {
+      0% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+      100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+    }
+    @keyframes pulse {
+      0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.8; }
+      50% { transform: translate(-50%, -50%) scale(1.2); opacity: 0.4; }
+    }
+  </style>
+</head>
+<body class="h-screen flex flex-col justify-between items-center p-1 md:p-2 overflow-hidden">
+
+  <!-- 배경음악 오디오 태그 -->
+  <audio id="bgm" src="bgm.mp3" loop preload="auto"></audio>
+
+  <!-- Header Section (슬림하게 압축) -->
+  <header class="w-full max-w-[98%] flex justify-between items-center bg-slate-800/95 border-2 border-emerald-500/50 rounded-xl px-3 py-1 shadow-xl text-white shrink-0">
+    <div class="flex items-center space-x-2">
+      <div class="bg-emerald-500 text-slate-900 font-bold px-2 py-0.5 rounded text-sm md:text-base">
+        STAGE 1
+      </div>
+      <h1 class="text-base md:text-xl text-emerald-400 font-bold">케로로 틀린그림찾기</h1>
+    </div>
+
+    <!-- Status Bar -->
+    <div class="flex items-center space-x-3 md:space-x-6 text-sm md:text-lg">
+      <div class="flex items-center space-x-1">
+        <span>⏱️</span>
+        <span id="timer" class="font-mono text-lg md:text-xl text-amber-400">60</span>s
+      </div>
+      <div class="flex items-center space-x-1">
+        <span>❤️</span>
+        <span id="lives" class="text-red-500 tracking-wider text-base md:text-xl">❤️❤️❤️</span>
+      </div>
+      <div class="flex items-center space-x-1">
+        <span>🎯</span>
+        <span id="remaining" class="text-base md:text-xl text-emerald-400 font-bold">5</span>개 남음
+      </div>
+    </div>
+
+    <!-- Controls & Sound -->
+    <div class="flex items-center space-x-2">
+      <button id="sound-btn" onclick="toggleAudio()" class="bg-slate-700 hover:bg-slate-600 text-slate-200 text-base px-2 py-1 rounded-lg border border-slate-500 transition">
+        🔊
+      </button>
+
+      <button id="hint-btn" onclick="useHint()" class="bg-amber-500 hover:bg-amber-400 active:scale-95 transition text-slate-950 font-bold px-3 py-1 rounded-lg flex items-center space-x-1 shadow-md text-sm md:text-base">
+        <span>💡 힌트</span>
+        <span id="hint-count" class="bg-slate-900 text-amber-400 text-xs px-1.5 py-0.2 rounded-full">2</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Game Play Area (최대한 크게 확장) -->
+  <main class="w-full max-w-[99%] flex-1 flex flex-col md:flex-row justify-center items-center gap-2 my-1 overflow-hidden">
+    
+    <!-- Left Image (원본) -->
+    <div class="flex-1 w-full h-full flex flex-col justify-center items-center overflow-hidden">
+      <div class="bg-slate-800/95 text-slate-200 px-3 py-0.5 rounded-t-lg border-t-2 border-x-2 border-emerald-500/30 text-xs font-bold shrink-0">
+        [원본 그림]
+      </div>
+      <div id="container-left" class="relative overflow-hidden rounded-xl border-4 border-slate-700 shadow-2xl cursor-pointer bg-slate-900 w-full h-full flex justify-center items-center">
+        <img id="img-left" src="bg.png" alt="Original" class="block w-full h-full max-h-[85vh] object-contain select-none pointer-events-none">
+        <div id="markers-left" class="absolute inset-0 pointer-events-none"></div>
+      </div>
+    </div>
+
+    <!-- Right Image (틀린 그림 영역) -->
+    <div class="flex-1 w-full h-full flex flex-col justify-center items-center overflow-hidden">
+      <div class="bg-slate-800/95 text-slate-200 px-3 py-0.5 rounded-t-lg border-t-2 border-x-2 border-emerald-500/30 text-xs font-bold shrink-0">
+        [틀린 곳을 찾으세요!]
+      </div>
+      <div id="container-right" class="relative overflow-hidden rounded-xl border-4 border-slate-700 shadow-2xl cursor-pointer bg-slate-900 w-full h-full flex justify-center items-center">
+        <img id="img-right" src="bg.png" alt="Target" class="block w-full h-full max-h-[85vh] object-contain select-none pointer-events-none">
+        <div id="markers-right" class="absolute inset-0 pointer-events-none"></div>
+        <!-- Right image visual modifications (Differences overlay) -->
+        <div id="diff-overlays" class="absolute inset-0 pointer-events-none"></div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Footer Info -->
+  <footer class="bg-slate-800/90 px-4 py-0.5 rounded-full text-slate-200 text-xs shadow-md border border-amber-900/20 shrink-0">
+    다른 곳 5군데를 찾아서 클릭하세요!
+  </footer>
+
+  <!-- Modal Area (Game Over / Clear) -->
+  <div id="modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center z-50">
+    <div class="bg-slate-800 border-4 border-emerald-500 rounded-2xl p-8 max-w-md w-full text-center shadow-2xl transform scale-100 transition-all text-white">
+      <h2 id="modal-title" class="text-4xl text-emerald-400 mb-4 font-bold">임무 완수!</h2>
+      <p id="modal-desc" class="text-slate-300 text-lg mb-6">케로로 중사와 함께 비밀기지 점검을 마쳤습니다!</p>
+      <button onclick="restartGame()" class="bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-slate-950 font-bold text-xl px-8 py-3 rounded-xl transition shadow-lg w-full">
+        다시 도전하기
+      </button>
+    </div>
+  </div>
+
+  <script>
+    const bgm = document.getElementById('bgm');
+    const soundBtn = document.getElementById('sound-btn');
+    let isMuted = false;
+
+    // 틀린 포인트 정의 (백분율 좌표 x, y 및 반경 r %)
+    const targetDifferences = [
+      { id: 1, x: 26.5, y: 11.2, r: 6, title: "좌측 상단 모니터 화면" },
+      { id: 2, x: 74.0, y: 13.5, r: 7, title: "우측 상단 도로로 액자" },
+      { id: 3, x: 28.5, y: 70.0, r: 8, title: "타마마가 먹는 쿠키" },
+      { id: 4, x: 72.5, y: 72.0, r: 9, title: "기로로 총기 및 포즈" },
+      { id: 5, x: 50.0, y: 46.0, r: 8, title: "중앙 케로로 모자 마크" }
+    ];
+
+    let foundIds = [];
+    let lives = 3;
+    let timeLeft = 60;
+    let hintCount = 2;
+    let timerInterval = null;
+    let isGameOver = false;
+
+    const containerLeft = document.getElementById('container-left');
+    const containerRight = document.getElementById('container-right');
+    const markersLeft = document.getElementById('markers-left');
+    const markersRight = document.getElementById('markers-right');
+    const diffOverlays = document.getElementById('diff-overlays');
+
+    // 오디오 재생/음소거 토글
+    function toggleAudio() {
+      if (bgm.paused) {
+        bgm.play();
+        isMuted = false;
+        soundBtn.innerText = '🔊';
+      } else {
+        bgm.pause();
+        isMuted = true;
+        soundBtn.innerText = '🔇';
+      }
+    }
+
+    // 화면 클릭 등 사용자 반응 시 배경음 자동 재생 시도
+    function tryPlayAudio() {
+      if (!isMuted && bgm.paused) {
+        bgm.play().catch(() => {});
+      }
+    }
+
+    // 게임 초기화 및 시작
+    function initGame() {
+      foundIds = [];
+      lives = 3;
+      timeLeft = 60;
+      hintCount = 2;
+      isGameOver = false;
+
+      document.getElementById('modal').classList.add('hidden');
+      updateUI();
+      clearMarkers();
+      createDiffOverlays();
+
+      // 클릭 이벤트 바인딩
+      containerLeft.onclick = (e) => handleImageClick(e, containerLeft);
+      containerRight.onclick = (e) => handleImageClick(e, containerRight);
+
+      // 타이머 시작
+      clearInterval(timerInterval);
+      timerInterval = setInterval(() => {
+        if (isGameOver) return;
+        timeLeft--;
+        document.getElementById('timer').innerText = timeLeft;
+        if (timeLeft <= 0) {
+          endGame(false, "시간이 초과되었습니다! 퍼렁별 침략 실패!");
+        }
+      }, 1000);
+    }
+
+    // 오른쪽 이미지에 시각적으로 틀린 효과 주기 (SVG/CSS overlay)
+    function createDiffOverlays() {
+      diffOverlays.innerHTML = '';
+      
+      addOverlayStyle(26.5, 11.2, 8, 'backdrop-filter: hue-rotate(180deg); opacity: 0.9;');
+      addOverlayStyle(74.0, 13.5, 9, 'backdrop-filter: invert(0.8);');
+      addOverlayStyle(28.5, 70.0, 7, 'backdrop-filter: saturate(5); background: rgba(255,100,100,0.3);');
+      addOverlayStyle(72.5, 72.0, 11, 'backdrop-filter: hue-rotate(90deg);');
+      addOverlayStyle(50.0, 46.0, 6, 'backdrop-filter: invert(1);');
+    }
+
+    function addOverlayStyle(x, y, r, styleStr) {
+      const el = document.createElement('div');
+      el.className = 'absolute rounded-full transition-opacity duration-300';
+      el.style.left = `${x}%`;
+      el.style.top = `${y}%`;
+      el.style.width = `${r * 2}%`;
+      el.style.height = `${r * 2}%`;
+      el.style.transform = 'translate(-50%, -50%)';
+      el.style.cssText += styleStr;
+      el.id = `diff-overlay-${targetDifferences.find(d => d.x === x && d.y === y)?.id}`;
+      diffOverlays.appendChild(el);
+    }
+
+    // 클릭 좌표 감지 및 정답 여부 체크
+    function handleImageClick(event, container) {
+      tryPlayAudio();
+      if (isGameOver) return;
+
+      const rect = container.getBoundingClientRect();
+      const clickX = ((event.clientX - rect.left) / rect.width) * 100;
+      const clickY = ((event.clientY - rect.top) / rect.height) * 100;
+
+      let matched = null;
+      for (let diff of targetDifferences) {
+        if (foundIds.includes(diff.id)) continue;
+
+        const dist = Math.hypot(clickX - diff.x, clickY - diff.y);
+        if (dist <= diff.r) {
+          matched = diff;
+          break;
+        }
+      }
+
+      if (matched) {
+        foundIds.push(matched.id);
+        addMarker(matched.x, matched.y);
+        
+        const overlayEl = document.getElementById(`diff-overlay-${matched.id}`);
+        if (overlayEl) overlayEl.style.display = 'none';
+
+        updateUI();
+        clearHintMarkers();
+
+        if (foundIds.length === targetDifferences.length) {
+          endGame(true, "축하합니다! 모든 틀린 그림을 찾았습니다!");
+        }
+      } else {
+        lives--;
+        updateUI();
+        showWrongFeedback(clickX, clickY, container);
+
+        if (lives <= 0) {
+          endGame(false, "목숨을 모두 소진하셨습니다!");
+        }
+      }
+    }
+
+    function addMarker(x, y) {
+      [markersLeft, markersRight].forEach(parent => {
+        const marker = document.createElement('div');
+        marker.className = 'circle-marker';
+        marker.style.left = `${x}%`;
+        marker.style.top = `${y}%`;
+        marker.style.width = '12%';
+        marker.style.height = '12%';
+        parent.appendChild(marker);
+      });
+    }
+
+    function showWrongFeedback(x, y, container) {
+      const wrongEl = document.createElement('div');
+      wrongEl.innerText = '❌';
+      wrongEl.className = 'absolute text-3xl font-bold transform -translate-x-1/2 -translate-y-1/2 pointer-events-none animate-ping';
+      wrongEl.style.left = `${x}%`;
+      wrongEl.style.top = `${y}%`;
+      container.appendChild(wrongEl);
+
+      setTimeout(() => wrongEl.remove(), 600);
+    }
+
+    function useHint() {
+      tryPlayAudio();
+      if (isGameOver || hintCount <= 0) return;
+
+      const unfound = targetDifferences.filter(d => !foundIds.includes(d.id));
+      if (unfound.length === 0) return;
+
+      hintCount--;
+      document.getElementById('hint-count').innerText = hintCount;
+
+      const target = unfound[Math.floor(Math.random() * unfound.length)];
+
+      clearHintMarkers();
+
+      [markersLeft, markersRight].forEach(parent => {
+        const hint = document.createElement('div');
+        hint.className = 'hint-marker';
+        hint.id = 'active-hint';
+        hint.style.left = `${target.x}%`;
+        hint.style.top = `${target.y}%`;
+        hint.style.width = '14%';
+        hint.style.height = '14%';
+        parent.appendChild(hint);
+      });
+    }
+
+    function clearHintMarkers() {
+      document.querySelectorAll('#active-hint').forEach(el => el.remove());
+    }
+
+    function clearMarkers() {
+      markersLeft.innerHTML = '';
+      markersRight.innerHTML = '';
+    }
+
+    function updateUI() {
+      document.getElementById('lives').innerText = '❤️'.repeat(lives) + '🖤'.repeat(3 - lives);
+      document.getElementById('remaining').innerText = targetDifferences.length - foundIds.length;
+      document.getElementById('hint-count').innerText = hintCount;
+    }
+
+    function endGame(isWin, message) {
+      isGameOver = true;
+      clearInterval(timerInterval);
+
+      const modal = document.getElementById('modal');
+      const title = document.getElementById('modal-title');
+      const desc = document.getElementById('modal-desc');
+
+      if (isWin) {
+        title.innerText = "MISSION COMPLETE!";
+        title.className = "text-4xl text-emerald-400 mb-4 font-bold";
+      } else {
+        title.innerText = "MISSION FAILED...";
+        title.className = "text-4xl text-red-500 mb-4 font-bold";
+      }
+
+      desc.innerText = message;
+      modal.classList.remove('hidden');
+    }
+
+    function restartGame() {
+      tryPlayAudio();
+      initGame();
+    }
+
+    window.onload = initGame;
+  </script>
+</body>
+</html>
